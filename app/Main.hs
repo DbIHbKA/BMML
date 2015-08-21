@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import Numeric.BMML
 
 main :: IO ()
-main = someFunc
+main = undefined
