@@ -11,6 +11,7 @@ import qualified Numeric.LinearAlgebra.HMatrix as H
 data RVMRModel = RVMRModel
     { mean :: Vector Double
     , covariance :: Matrix Double
+    , optbeta :: Double
     }
 
 initAlpha :: Int -> Vector Double
@@ -26,14 +27,17 @@ fit x t =
         beta = initBeta
         sigma = calcSigma alpha beta x
         m = calcMean beta sigma x t
-    in go 20 alpha beta sigma m
+    in go 10000 alpha beta sigma m
   where
-    go 0 _ _ sigma m =
+    go 0 _ beta sigma m =
         RVMRModel
         { mean = m
         , covariance = sigma
+        , optbeta = beta
         }
-    go k alpha beta sigma m = go (k - 1) na nb ns nm
+    go k alpha beta sigma m = if sNorm alpha na < 0.01
+                                 then go 0 na nb ns nm
+                                else go (k - 1) na nb ns nm
       where
         (n,d) = H.size x
         gamma :: Vector Double
@@ -51,8 +55,22 @@ fit x t =
         ns = calcSigma na nb x
         nm = calcMean nb ns x t
 
+sNorm :: Vector Double -> Vector Double -> Double
+sNorm x y =
+    sqrt
+        (foldr
+             (\(xi,yi) res ->
+                   res + (yi - xi) * (yi - xi))
+             0
+             (filter
+                  (\(xi,yi) ->
+                        xi < 10000 && yi < 10000)
+                  (zip (H.toList x) (H.toList y))))
+{-# INLINE sNorm #-}
+
 calcSigma :: Vector Double -> Double -> Matrix Double -> Matrix Double
 calcSigma a b x = H.inv (H.diag a + b `H.scale` (H.tr x H.<> x))
+{-# INLINE calcSigma #-}
 
 calcMean :: Double
          -> Matrix Double
@@ -60,9 +78,12 @@ calcMean :: Double
          -> Vector Double
          -> Vector Double
 calcMean b s x t = b `H.scale` ((s H.<> H.tr x) H.#> t)
+{-# INLINE calcMean #-}
 
 normSq :: Vector Double -> Double
 normSq v = v `H.dot` v
+{-# INLINE normSq #-}
 
-predict :: RVMRModel -> Vector Double -> Double
-predict (RVMRModel m _) v = m `H.dot` v
+predict :: RVMRModel -> Vector Double -> (Double, Double)
+predict (RVMRModel m sigma ob) v =
+    (m `H.dot` v, 1 / ob + v `H.dot` (sigma H.#> v))
