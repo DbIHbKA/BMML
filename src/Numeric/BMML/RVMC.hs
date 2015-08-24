@@ -52,7 +52,7 @@ fit phi t =
         y = initY n
         b = calcB y
         sigma = calcSigma phi b alpha
-    in go (200 :: Int) alpha y b (calcW alpha phi t y) sigma
+    in go (2 * floor (sqrt (fromIntegral n))) alpha y b (calcW alpha phi t y) sigma
   where
     go 0 _ _ _ w sigma =
         RVMCModel
